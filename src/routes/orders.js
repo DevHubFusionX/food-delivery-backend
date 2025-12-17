@@ -5,7 +5,7 @@ const Restaurant = require('../models/Restaurant');
 const Coupon = require('../models/Coupon');
 const Payment = require('../models/Payment');
 const Cart = require('../models/Cart');
-const paystack = require('paystack')(process.env.PAYSTACK_SECRET_KEY);
+// const paystack = require('paystack')(process.env.PAYSTACK_SECRET_KEY);
 const { authMiddleware, requireRole } = require('../middleware/auth');
 const { generateOrderNumber } = require('../utils/helpers');
 const OrderController = require('../controllers/orderController');
@@ -115,23 +115,8 @@ router.post('/', authMiddleware, async (req, res) => {
 
     // 5. Create Paystack transaction for payments
     if (payment_method === 'paystack') {
-      try {
-        const transaction = await paystack.transaction.initialize({
-          amount: total_cents,
-          email: req.user.email || 'customer@example.com',
-          reference: `order_${order._id}_${Date.now()}`,
-          metadata: {
-            order_id: order._id.toString(),
-            user_id: userId
-          }
-        });
-
-        payment_reference = transaction.data?.reference;
-      } catch (paystackError) {
-        console.error('Paystack initialization failed:', paystackError);
-        // Continue without payment reference for now
-        payment_reference = null;
-      }
+      // Paystack integration disabled for security
+      payment_reference = null;
 
       // Create payment record only if Paystack succeeded
       if (payment_reference) {

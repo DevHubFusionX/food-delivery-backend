@@ -1,5 +1,5 @@
 const express = require('express');
-const paystack = require('paystack')(process.env.PAYSTACK_SECRET_KEY);
+// const paystack = require('paystack')(process.env.PAYSTACK_SECRET_KEY);
 const Payment = require('../models/Payment');
 const Order = require('../models/Order');
 const { authMiddleware } = require('../middleware/auth');
@@ -15,33 +15,8 @@ router.post('/paystack-init', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Invalid amount' });
     }
 
-    const transaction = await paystack.transaction.initialize({
-      amount: amount_cents,
-      email: req.user.email || 'customer@example.com',
-      reference: `order_${order_id}_${Date.now()}`,
-      metadata: {
-        order_id: order_id || '',
-        user_id: req.user.userId
-      }
-    });
-
-    // Create payment record if order_id provided
-    if (order_id) {
-      const payment = new Payment({
-        orderId: order_id,
-        provider: 'paystack',
-        providerPaymentId: transaction.data.reference,
-        amountCents: amount_cents,
-        status: 'pending'
-      });
-
-      await payment.save();
-    }
-
-    res.json({
-      authorization_url: transaction.data.authorization_url,
-      reference: transaction.data.reference
-    });
+    // Paystack integration disabled for security
+    res.status(503).json({ error: 'Payment service temporarily unavailable' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
