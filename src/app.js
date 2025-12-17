@@ -71,6 +71,22 @@ app.get('/health', (req, res) => {
   });
 });
 
+// CORS test endpoint
+app.get('/api/v1/test-cors', (req, res) => {
+  console.log('CORS Test - Origin:', req.headers.origin);
+  console.log('CORS Test - Headers:', req.headers);
+  res.json({
+    message: 'CORS test successful',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.options('/api/v1/test-cors', (req, res) => {
+  console.log('OPTIONS request - Origin:', req.headers.origin);
+  res.sendStatus(200);
+});
+
 // 404 handler
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' });
@@ -117,6 +133,8 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('CORS Configuration: Updated for Vercel deployment');
+  console.log('Deployment timestamp:', new Date().toISOString());
 });
 
 module.exports = app;
