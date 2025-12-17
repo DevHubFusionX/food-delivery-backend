@@ -10,7 +10,10 @@ const app = express();
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: [
+    'http://localhost:5173',
+    'https://food-delivery-two-gules.vercel.app'
+  ],
   credentials: true
 }));
 
@@ -87,10 +90,7 @@ app.use((error, req, res, next) => {
 });
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery');
 
 mongoose.connection.on('connected', () => {
   console.log('Connected to MongoDB');
