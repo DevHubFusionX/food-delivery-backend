@@ -1,144 +1,157 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const mongoose = require('mongoose');
-require('dotenv').config();
+const express = require('express')
+const cors = require('cors')
+const helmet = require('helmet')
+const rateLimit = require('express-rate-limit')
+const mongoose = require('mongoose')
+require('dotenv').config()
 
-const app = express();
+const app = express()
 
-// Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'https://food-delivery-two-gules.vercel.app',
-      'https://food-delivery-qoymqi57r-franklin-s-projects-4f1f5f19.vercel.app'
-    ];
+// CORS must run before everything else (including helmet and rate limiting)
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        'http://localhost:5173', // local dev
+        'https://food-delivery-two-gules.vercel.app',
+        'https://food-delivery-qoymqi57r-franklin-s-projects-4f1f5f19.vercel.app'
+      ]
 
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(null, false)
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  })
+)
 
-// Rate limiting
+// Explicitly handle preflight for all routes
+app.options('*', cors())
+
+// Security middleware (runs after CORS)
+app.use(helmet())
+
+// Rate limiting – skip OPTIONS so preflight is never blocked
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP'
-});
-app.use('/api/', limiter);
+  message: 'Too many requests from this IP',
+  skip: req => req.method === 'OPTIONS'
+})
+app.use('/api/', limiter)
 
 // Body parsing middleware
-app.use('/api/v1/webhooks/stripe', express.raw({ type: 'application/json' }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use('/api/v1/webhooks/stripe', express.raw({ type: 'application/json' }))
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ extended: true }))
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const restaurantRoutes = require('./routes/restaurants');
-const cartRoutes = require('./routes/cart');
-const orderRoutes = require('./routes/orders');
-const paymentRoutes = require('./routes/payments');
-const riderRoutes = require('./routes/riders');
-const searchRoutes = require('./routes/search');
-const adminRoutes = require('./routes/admin');
+const authRoutes = require('./routes/auth')
+const restaurantRoutes = require('./routes/restaurants')
+const cartRoutes = require('./routes/cart')
+const orderRoutes = require('./routes/orders')
+const paymentRoutes = require('./routes/payments')
+const riderRoutes = require('./routes/riders')
+const searchRoutes = require('./routes/search')
+const adminRoutes = require('./routes/admin')
 
 // API routes
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/restaurants', restaurantRoutes);
-app.use('/api/v1/cart', cartRoutes);
-app.use('/api/v1/orders', orderRoutes);
-app.use('/api/v1/payments', paymentRoutes);
-app.use('/api/v1/riders', riderRoutes);
-app.use('/api/v1/search', searchRoutes);
-app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/auth', authRoutes)
+app.use('/api/v1/restaurants', restaurantRoutes)
+app.use('/api/v1/cart', cartRoutes)
+app.use('/api/v1/orders', orderRoutes)
+app.use('/api/v1/payments', paymentRoutes)
+app.use('/api/v1/riders', riderRoutes)
+app.use('/api/v1/search', searchRoutes)
+app.use('/api/v1/admin', adminRoutes)
 
 // Root endpoint
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Food Delivery API',
-    version: '3.0.0',
+    version: '3.1.0',
     timestamp: new Date().toISOString(),
     cors_updated: true
-  });
-});
+  })
+})
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     version: process.env.npm_package_version || '1.0.0'
-  });
-});
+  })
+})
 
 // CORS test endpoint
 app.get('/test-cors', (req, res) => {
-  console.log('CORS Test - Origin:', req.headers.origin);
+  console.log('CORS Test - Origin:', req.headers.origin)
   res.json({
     message: 'CORS test successful',
     origin: req.headers.origin,
     timestamp: new Date().toISOString(),
     deployment_version: '3.0.0'
-  });
-});
+  })
+})
 
 // 404 handler
 app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
+  res.status(404).json({ error: 'Route not found' })
+})
 
 // Global error handler
 app.use((error, req, res, next) => {
-  console.error('Global error:', error);
-  
+  console.error('Global error:', error)
+
   if (error.name === 'ValidationError') {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Validation error',
       details: Object.values(error.errors).map(e => e.message)
-    });
+    })
   }
-  
+
   if (error.name === 'CastError') {
-    return res.status(400).json({ error: 'Invalid ID format' });
+    return res.status(400).json({ error: 'Invalid ID format' })
   }
-  
+
   if (error.code === 11000) {
-    return res.status(400).json({ error: 'Duplicate entry' });
+    return res.status(400).json({ error: 'Duplicate entry' })
   }
-  
-  res.status(500).json({ 
+
+  res.status(500).json({
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-  });
-});
+    message:
+      process.env.NODE_ENV === 'development'
+        ? error.message
+        : 'Something went wrong'
+  })
+})
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery');
+mongoose.connect(
+  process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery'
+)
 
 mongoose.connection.on('connected', () => {
-  console.log('Connected to MongoDB');
-});
+  console.log('Connected to MongoDB')
+})
 
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-});
+mongoose.connection.on('error', err => {
+  console.error('MongoDB connection error:', err)
+})
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('CORS Configuration: Updated for Vercel deployment');
-  console.log('Deployment timestamp:', new Date().toISOString());
-});
+  console.log(`Server running on port ${PORT}`)
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+  console.log('CORS Configuration: Updated for Vercel deployment')
+  console.log('Deployment timestamp:', new Date().toISOString())
+})
 
-module.exports = app;
+module.exports = app
