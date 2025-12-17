@@ -10,7 +10,11 @@ const app = express();
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: true,
+  origin: [
+    'http://localhost:5173',
+    'https://food-delivery-two-gules.vercel.app',
+    'https://food-delivery-qoymqi57r-franklin-s-projects-4f1f5f19.vercel.app'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -18,10 +22,21 @@ app.use(cors({
 
 // Additional CORS headers for preflight
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'https://food-delivery-two-gules.vercel.app',
+    'https://food-delivery-qoymqi57r-franklin-s-projects-4f1f5f19.vercel.app'
+  ];
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+  
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
   } else {
@@ -66,7 +81,7 @@ app.use('/api/v1/admin', adminRoutes);
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Food Delivery API',
-    version: '2.0.0',
+    version: '2.1.0',
     timestamp: new Date().toISOString(),
     cors_updated: true
   });
@@ -88,7 +103,7 @@ app.get('/test-cors', (req, res) => {
     message: 'CORS test successful',
     origin: req.headers.origin,
     timestamp: new Date().toISOString(),
-    deployment_version: '2.0.0'
+    deployment_version: '2.1.0'
   });
 });
 
