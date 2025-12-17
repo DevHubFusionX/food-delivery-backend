@@ -62,6 +62,16 @@ app.use('/api/v1/riders', riderRoutes);
 app.use('/api/v1/search', searchRoutes);
 app.use('/api/v1/admin', adminRoutes);
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Food Delivery API',
+    version: '2.0.0',
+    timestamp: new Date().toISOString(),
+    cors_updated: true
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
@@ -72,19 +82,14 @@ app.get('/health', (req, res) => {
 });
 
 // CORS test endpoint
-app.get('/api/v1/test-cors', (req, res) => {
+app.get('/test-cors', (req, res) => {
   console.log('CORS Test - Origin:', req.headers.origin);
-  console.log('CORS Test - Headers:', req.headers);
   res.json({
     message: 'CORS test successful',
     origin: req.headers.origin,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    deployment_version: '2.0.0'
   });
-});
-
-app.options('/api/v1/test-cors', (req, res) => {
-  console.log('OPTIONS request - Origin:', req.headers.origin);
-  res.sendStatus(200);
 });
 
 // 404 handler
