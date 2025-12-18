@@ -5,18 +5,21 @@ const rateLimit = require('express-rate-limit')
 const mongoose = require('mongoose')
 require('dotenv').config()
 
-const app = express()
+// Configuration
+const config = {
+  port: process.env.PORT || 3000,
+  mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery',
+  allowedOrigins: [
+    'http://localhost:5173',
+    'https://food-delivery-two-gules.vercel.app',
+    'https://food-delivery-qoymqi57r-franklin-s-projects-4f1f5f19.vercel.app'
+  ]
+}
 
-// Single reusable CORS config
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://food-delivery-two-gules.vercel.app',
-  'https://food-delivery-qoymqi57r-franklin-s-projects-4f1f5f19.vercel.app'
-]
-
+// CORS Configuration
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || config.allowedOrigins.includes(origin)) {
       callback(null, true)
     } else {
       callback(new Error('Not allowed by CORS'))
@@ -27,130 +30,98 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 }
 
-// Apply CORS config
-app.use(cors(corsOptions))
-app.options('*', cors(corsOptions))
-
-// Security middleware (runs after CORS)
-app.use(helmet())
-
-// Rate limiting – skip OPTIONS so preflight is never blocked
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+// Rate Limiting Configuration
+const rateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: 'Too many requests from this IP',
   skip: req => req.method === 'OPTIONS'
 })
-app.use('/api/', limiter)
 
-// Body parsing middleware
+// Routes
+const routes = {
+  auth: require('./routes/auth'),
+  restaurants: require('./routes/restaurants'),
+  cart: require('./routes/cart'),
+  orders: require('./routes/orders'),
+  payments: require('./routes/payments'),
+  riders: require('./routes/riders'),
+  search: require('./routes/search'),
+  admin: require('./routes/admin')
+}
+
+// Initialize Express App
+const app = express()
+
+// Middleware Setup
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
+app.use(helmet())
+app.use('/api/', rateLimiter)
 app.use('/api/v1/webhooks/stripe', express.raw({ type: 'application/json' }))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
-// Import routes
-const authRoutes = require('./routes/auth')
-const restaurantRoutes = require('./routes/restaurants')
-const cartRoutes = require('./routes/cart')
-const orderRoutes = require('./routes/orders')
-const paymentRoutes = require('./routes/payments')
-const riderRoutes = require('./routes/riders')
-const searchRoutes = require('./routes/search')
-const adminRoutes = require('./routes/admin')
+// API Routes
+app.use('/api/v1/auth', routes.auth)
+app.use('/api/v1/restaurants', routes.restaurants)
+app.use('/api/v1/cart', routes.cart)
+app.use('/api/v1/orders', routes.orders)
+app.use('/api/v1/payments', routes.payments)
+app.use('/api/v1/riders', routes.riders)
+app.use('/api/v1/search', routes.search)
+app.use('/api/v1/admin', routes.admin)
 
-// API routes
-app.use('/api/v1/auth', authRoutes)
-app.use('/api/v1/restaurants', restaurantRoutes)
-app.use('/api/v1/cart', cartRoutes)
-app.use('/api/v1/orders', orderRoutes)
-app.use('/api/v1/payments', paymentRoutes)
-app.use('/api/v1/riders', riderRoutes)
-app.use('/api/v1/search', searchRoutes)
-app.use('/api/v1/admin', adminRoutes)
-
-// Root endpoint
+// Health Endpoints
 app.get('/', (req, res) => {
   res.json({
     message: 'Food Delivery API',
     version: '3.1.0',
-    timestamp: new Date().toISOString(),
-    cors_updated: true
+    timestamp: new Date().toISOString()
   })
 })
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0'
+    timestamp: new Date().toISOString()
   })
 })
 
-// CORS test endpoint
-app.get('/test-cors', (req, res) => {
-  console.log('CORS Test - Origin:', req.headers.origin)
-  res.json({
-    message: 'CORS test successful',
-    origin: req.headers.origin,
-    timestamp: new Date().toISOString(),
-    deployment_version: '3.0.0'
-  })
-})
-
-// 404 handler
+// Error Handlers
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route not found' })
 })
 
-// Global error handler
 app.use((error, req, res, next) => {
-  console.error('Global error:', error)
+  console.error('Error:', error.message)
 
-  if (error.name === 'ValidationError') {
-    return res.status(400).json({
-      error: 'Validation error',
-      details: Object.values(error.errors).map(e => e.message)
-    })
+  const errorMap = {
+    ValidationError: { status: 400, message: 'Validation error' },
+    CastError: { status: 400, message: 'Invalid ID format' },
+    11000: { status: 400, message: 'Duplicate entry' }
   }
 
-  if (error.name === 'CastError') {
-    return res.status(400).json({ error: 'Invalid ID format' })
-  }
-
-  if (error.code === 11000) {
-    return res.status(400).json({ error: 'Duplicate entry' })
+  const errorType = errorMap[error.name] || errorMap[error.code]
+  if (errorType) {
+    return res.status(errorType.status).json({ error: errorType.message })
   }
 
   res.status(500).json({
     error: 'Internal server error',
-    message:
-      process.env.NODE_ENV === 'development'
-        ? error.message
-        : 'Something went wrong'
+    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
   })
 })
 
-// Database connection
-mongoose.connect(
-  process.env.MONGODB_URI || 'mongodb://localhost:27017/food-delivery'
-)
+// Database Connection
+mongoose.connect(config.mongoUri)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err))
 
-mongoose.connection.on('connected', () => {
-  console.log('Connected to MongoDB')
-})
-
-mongoose.connection.on('error', err => {
-  console.error('MongoDB connection error:', err)
-})
-
-const PORT = process.env.PORT || 3000
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
+// Start Server
+app.listen(config.port, () => {
+  console.log(`Server running on port ${config.port}`)
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
-  console.log('CORS Configuration: Updated for Vercel deployment')
-  console.log('Deployment timestamp:', new Date().toISOString())
 })
 
 module.exports = app
