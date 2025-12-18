@@ -19,8 +19,9 @@ const config = {
 // CORS Configuration
 const corsOptions = {
   origin: (origin, callback) => {
+    console.log('CORS Origin Check:', origin)
     if (!origin || config.allowedOrigins.includes(origin)) {
-      callback(null, true)
+      callback(null, origin)
     } else {
       callback(new Error('Not allowed by CORS'))
     }
